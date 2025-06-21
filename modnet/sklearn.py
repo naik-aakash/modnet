@@ -77,7 +77,9 @@ class RR(TransformerMixin, BaseEstimator):
     """
 
     def __init__(
-        self, n_feat: Union[None, int] = None, rr_parameters: Union[None, Dict] = None
+        self, n_feat: Union[None, int] = None, rr_parameters: Union[None, Dict] = None, 
+        n_jobs: Union[None, int] = None, target_nmi_kwargs: Union[None, Dict] = None,
+        cross_nmi_kwargs: Union[None, Dict] = None
     ):
         """Constructor for RR transformer.
 
@@ -87,6 +89,9 @@ class RR(TransformerMixin, BaseEstimator):
              to constant values instead of using the dynamical evaluation. Expects to find keys `"p"` and `"c"`,
               containing either a callable that takes `n` as an argument and returns the desired `p` or `c`,
                or another dictionary containing the key `"value"` that stores a constant value of `p` or `c`.
+            n_jobs: max number of processes to use when calculating cross NMI.
+            target_nmi_kwargs: Keyword arguments to be passed down to the modnet.preprocessing.nmi_target
+            cross_nmi_kwargs: Keyword arguments to be passed down to the modnet.preprocessing.get_cross_nmi
         """
         self.n_feat = n_feat
         self.rr_parameters = rr_parameters
@@ -109,9 +114,17 @@ class RR(TransformerMixin, BaseEstimator):
         """
 
         if cross_nmi_feats is None:
-            cross_nmi_feats = get_cross_nmi(X)
+            cross_nmi_feats = get_cross_nmi(X, n_jobs=n_jobs, **cross_nmi_kwargs)
         if nmi_feats_target is None:
-            nmi_feats_target = nmi_target(X, y)
+            nmi_feats_target = nmi_target(X, y, **target_nmi_kwargs)
+
+        missing = [x for x in cross_nmi_feats.index if x not in nmi_feats_target.index]
+        cross_nmi_feats = cross_nmi_feats.drop(missing, axis=0).drop(missing, axis=1)
+
+        missing = [x for x in nmi_feats_target.index if x not in cross_nmi_feats.index]
+        nmi_feats_target = nmi_feats_target.drop(missing, axis=0)
+        nmi_feats_target = nmi_feats_target.astype(np.float64)
+
 
         rr_results = get_features_relevance_redundancy(
             nmi_feats_target,
@@ -120,6 +133,8 @@ class RR(TransformerMixin, BaseEstimator):
             rr_parameters=self.rr_parameters,
         )
         self.optimal_descriptors = [x["feature"] for x in rr_results]
+
+        return self
 
     def transform(self, X, y=None):
         """Transform the inputs X based on a fitted RR analysis. The best n_feat features are kept and returned.
