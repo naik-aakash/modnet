@@ -24,6 +24,7 @@ p = Pipeline([('featurizer', modnet_featurizer), ('rr', rr_analysis), ('modnet',
   (see https://scikit-learn.org/stable/developers/develop.html#instantiation).
 """
 
+import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin
 from sklearn.base import TransformerMixin
@@ -77,9 +78,12 @@ class RR(TransformerMixin, BaseEstimator):
     """
 
     def __init__(
-        self, n_feat: Union[None, int] = None, rr_parameters: Union[None, Dict] = None, 
-        n_jobs: Union[None, int] = None, target_nmi_kwargs: Union[None, Dict] = None,
-        cross_nmi_kwargs: Union[None, Dict] = None
+        self,
+        n_feat: Union[None, int] = None,
+        rr_parameters: Union[None, Dict] = None,
+        n_jobs: Union[None, int] = None,
+        cross_nmi_kwargs: Union[None, Dict] = None,
+        target_nmi_kwargs: Union[None, Dict] = None,
     ):
         """Constructor for RR transformer.
 
@@ -90,12 +94,15 @@ class RR(TransformerMixin, BaseEstimator):
               containing either a callable that takes `n` as an argument and returns the desired `p` or `c`,
                or another dictionary containing the key `"value"` that stores a constant value of `p` or `c`.
             n_jobs: max number of processes to use when calculating cross NMI.
-            target_nmi_kwargs: Keyword arguments to be passed down to the modnet.preprocessing.nmi_target
             cross_nmi_kwargs: Keyword arguments to be passed down to the modnet.preprocessing.get_cross_nmi
+            target_nmi_kwargs: Keyword arguments to be passed down to the modnet.preprocessing.nmi_target
         """
         self.n_feat = n_feat
         self.rr_parameters = rr_parameters
         self.optimal_descriptors = []
+        self.n_jobs = n_jobs
+        self.cross_nmi_kwargs = cross_nmi_kwargs if cross_nmi_kwargs is not None else {}
+        self.target_nmi_kwargs = target_nmi_kwargs if target_nmi_kwargs is not None else {}
 
     def fit(self, X, y, nmi_feats_target=None, cross_nmi_feats=None):
         """Ranking of the features. This is based on relevance and redundancy provided as NMI dataframes.
@@ -114,9 +121,9 @@ class RR(TransformerMixin, BaseEstimator):
         """
 
         if cross_nmi_feats is None:
-            cross_nmi_feats = get_cross_nmi(X, n_jobs=n_jobs, **cross_nmi_kwargs)
+            cross_nmi_feats = get_cross_nmi(X, n_jobs=self.n_jobs, **self.cross_nmi_kwargs)
         if nmi_feats_target is None:
-            nmi_feats_target = nmi_target(X, y, **target_nmi_kwargs)
+            nmi_feats_target = nmi_target(X, y, **self.target_nmi_kwargs)
 
         missing = [x for x in cross_nmi_feats.index if x not in nmi_feats_target.index]
         cross_nmi_feats = cross_nmi_feats.drop(missing, axis=0).drop(missing, axis=1)
@@ -124,7 +131,6 @@ class RR(TransformerMixin, BaseEstimator):
         missing = [x for x in nmi_feats_target.index if x not in cross_nmi_feats.index]
         nmi_feats_target = nmi_feats_target.drop(missing, axis=0)
         nmi_feats_target = nmi_feats_target.astype(np.float64)
-
 
         rr_results = get_features_relevance_redundancy(
             nmi_feats_target,
