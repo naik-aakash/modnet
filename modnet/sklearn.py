@@ -102,7 +102,9 @@ class RR(TransformerMixin, BaseEstimator):
         self.optimal_descriptors = []
         self.n_jobs = n_jobs
         self.cross_nmi_kwargs = cross_nmi_kwargs if cross_nmi_kwargs is not None else {}
-        self.target_nmi_kwargs = target_nmi_kwargs if target_nmi_kwargs is not None else {}
+        self.target_nmi_kwargs = (
+            target_nmi_kwargs if target_nmi_kwargs is not None else {}
+        )
 
     def fit(self, X, y, nmi_feats_target=None, cross_nmi_feats=None):
         """Ranking of the features. This is based on relevance and redundancy provided as NMI dataframes.
@@ -121,7 +123,9 @@ class RR(TransformerMixin, BaseEstimator):
         """
 
         if cross_nmi_feats is None:
-            cross_nmi_feats = get_cross_nmi(X, n_jobs=self.n_jobs, **self.cross_nmi_kwargs)
+            cross_nmi_feats = get_cross_nmi(
+                X, n_jobs=self.n_jobs, **self.cross_nmi_kwargs
+            )
         if nmi_feats_target is None:
             nmi_feats_target = nmi_target(X, y, **self.target_nmi_kwargs)
 
