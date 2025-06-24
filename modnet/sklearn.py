@@ -33,7 +33,9 @@ from modnet.preprocessing import (
     get_features_relevance_redundancy,
     get_cross_nmi,
     nmi_target,
+    merge_ranked,
 )
+from modnet.utils import LOG
 
 
 class MODNetFeaturizer(TransformerMixin, BaseEstimator):
@@ -100,6 +102,7 @@ class RR(TransformerMixin, BaseEstimator):
         self.n_feat = n_feat
         self.rr_parameters = rr_parameters
         self.optimal_descriptors = []
+        self.optimal_features_by_target = {}
         self.n_jobs = n_jobs
         self.cross_nmi_kwargs = cross_nmi_kwargs if cross_nmi_kwargs is not None else {}
         self.target_nmi_kwargs = (
@@ -126,23 +129,37 @@ class RR(TransformerMixin, BaseEstimator):
             cross_nmi_feats = get_cross_nmi(
                 X, n_jobs=self.n_jobs, **self.cross_nmi_kwargs
             )
+
+        ranked_lists = []
+
         if nmi_feats_target is None:
-            nmi_feats_target = nmi_target(X, y, **self.target_nmi_kwargs)
+            for name in list(y):
+                LOG.info(f"Starting NMI computations for target {name}")
+                X_temp = X.copy()
+                y_temp = y[[name]]
 
-        missing = [x for x in cross_nmi_feats.index if x not in nmi_feats_target.index]
-        cross_nmi_feats = cross_nmi_feats.drop(missing, axis=0).drop(missing, axis=1)
+                nmi_feats_target = nmi_target(X_temp, y_temp, **self.target_nmi_kwargs)
 
-        missing = [x for x in nmi_feats_target.index if x not in cross_nmi_feats.index]
-        nmi_feats_target = nmi_feats_target.drop(missing, axis=0)
-        nmi_feats_target = nmi_feats_target.astype(np.float64)
+                missing = [
+                    x for x in nmi_feats_target.index if x not in cross_nmi_feats.index
+                ]
+                nmi_feats_target = nmi_feats_target.drop(missing, axis=0)
+                nmi_feats_target = nmi_feats_target.astype(np.float64)
 
-        rr_results = get_features_relevance_redundancy(
-            nmi_feats_target,
-            cross_nmi_feats,
-            n_feat=self.n_feat,
-            rr_parameters=self.rr_parameters,
-        )
-        self.optimal_descriptors = [x["feature"] for x in rr_results]
+                rr_results = get_features_relevance_redundancy(
+                    nmi_feats_target,
+                    cross_nmi_feats,
+                    n_feat=self.n_feat,
+                    rr_parameters=self.rr_parameters,
+                )
+
+                self.optimal_features_by_target[name] = [
+                    x["feature"] for x in rr_results
+                ]
+
+                ranked_lists.append(self.optimal_features_by_target[name])
+
+        self.optimal_descriptors = merge_ranked(ranked_lists)
 
         return self
 
