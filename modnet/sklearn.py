@@ -159,16 +159,15 @@ class RR(TransformerMixin, BaseEstimator):
 
                 ranked_lists.append(self.optimal_features_by_target[name])
 
-        rr_results = get_features_relevance_redundancy(
-            nmi_feats_target,
-            cross_nmi_feats,
-            n_feat=self.n_feat,
-            rr_parameters=self.rr_parameters,
-        )
-
         if ranked_lists:
             self.optimal_descriptors = merge_ranked(ranked_lists)
         else:
+            rr_results = get_features_relevance_redundancy(
+                nmi_feats_target,
+                cross_nmi_feats,
+                n_feat=self.n_feat,
+                rr_parameters=self.rr_parameters,
+            )
             self.optimal_descriptors = [x["feature"] for x in rr_results]
 
         return self
