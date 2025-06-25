@@ -125,12 +125,12 @@ class RR(TransformerMixin, BaseEstimator):
             Fitted RR transformer
         """
 
+        ranked_lists = []
+
         if cross_nmi_feats is None:
             cross_nmi_feats = get_cross_nmi(
                 X, n_jobs=self.n_jobs, **self.cross_nmi_kwargs
             )
-
-        ranked_lists = []
 
         if nmi_feats_target is None:
             for name in list(y):
@@ -159,7 +159,17 @@ class RR(TransformerMixin, BaseEstimator):
 
                 ranked_lists.append(self.optimal_features_by_target[name])
 
-        self.optimal_descriptors = merge_ranked(ranked_lists)
+        rr_results = get_features_relevance_redundancy(
+            nmi_feats_target,
+            cross_nmi_feats,
+            n_feat=self.n_feat,
+            rr_parameters=self.rr_parameters,
+        )
+
+        if ranked_lists:
+            self.optimal_descriptors = merge_ranked(ranked_lists)
+        else:
+            self.optimal_descriptors = [x["feature"] for x in rr_results]
 
         return self
 
